@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.db3
+*.pdf
+# Falls du doch mal einen venv-Ordner hast:
+venv/
