@@ -138,39 +138,64 @@ def list_pdfs():
 @app.route("/api/pdfs/search")
 def search_pdf_titles():
     query_raw = request.args.get("q", "").strip()
-    form_id_param = request.args.get("form_id")
-    year_param = request.args.get("year")
-
+    query = query_raw.lower()
     limit = min(int(request.args.get("limit", 50)), 200)
 
-    # SQL-Struktur
+    if not query_raw:
+        return jsonify({"count": 0, "items": []})
+
+    matched_form_id = None
+
+    # 🔍 form_id erkennen
+    if query.isdigit():
+        form_id_candidate = int(query)
+        if form_id_candidate in FORM_TYPES:
+            matched_form_id = form_id_candidate
+    else:
+        for form_id, form_name in FORM_TYPES.items():
+            if query == form_name.lower():
+                matched_form_id = form_id
+                break
+
+    pattern = f"%{query_raw}%"
+
+    # 🔥 SQL dynamisch bauen
     sql = """
-    SELECT pdf.*, form.name AS form_name, kontakt.full_name AS kontakt_name
+    SELECT
+        pdf.id,
+        pdf.title,
+        pdf.keywords,
+        pdf.name,
+        pdf.form_id,
+        pdf.lastupdate,
+        form.name AS form_name
     FROM pdf
     LEFT JOIN form ON pdf.form_id = form.id
-    LEFT JOIN kontakt ON pdf.kontakt_id = kontakt.kontakt_id
     WHERE 1=1
     """
+
     params = []
 
-    # 1. Filter: Form ID (direkt über Parameter)
-    if form_id_param:
-        sql += " AND pdf.form_id = ?"
-        params.append(form_id_param)
+    if matched_form_id is not None:
+        # 🔥 UND-Verknüpfung
+        sql += " AND form_id = ?"
+        params.append(matched_form_id)
 
-    # 2. Filter: Erstellungsjahr (aus dem Feld 'created')
-    if year_param:
-        # Extrahiert das Jahr aus dem 'created' Datum (Format YYYY-MM-DD)
-        sql += " AND strftime('%Y', pdf.created) = ?"
-        params.append(str(year_param))
+    # 🔍 Freitext immer zusätzlich
+    sql += """
+        AND (
+            COALESCE(title, '') LIKE ?
+            OR COALESCE(keywords, '') LIKE ?
+        )
+    """
+    params.extend([pattern, pattern])
 
-    # 3. Filter: Freitextsuche (falls vorhanden)
-    if query_raw:
-        pattern = f"%{query_raw}%"
-        sql += " AND (COALESCE(pdf.title, '') LIKE ? OR COALESCE(pdf.keywords, '') LIKE ?)"
-        params.extend([pattern, pattern])
-
-    sql += " ORDER BY pdf.created DESC LIMIT ?"
+    sql += """
+        ORDER BY
+            COALESCE(pdf.title, pdf.name) COLLATE NOCASE ASC,
+            pdf.lastupdate DESC
+        LIMIT ?
+    """
     params.append(limit)
 
     conn = get_db_connection()
@@ -179,12 +204,8 @@ def search_pdf_titles():
     finally:
         conn.close()
 
-    # ... (Rest der JSON-Aufbereitung wie gehabt)
     items = []
     for row in rows:
-        # Hier greifen wir mit [key] zu, nicht mit .get()
-        # Da der JOIN "kontakt" heißen könnte, prüfen wir kurz, ob der key existiert
-        kontakt_name = row["kontakt_name"] if "kontakt_name" in row.keys() else "-"
         display_title = row["title"] if row["title"] else row["name"]
 
         items.append(
@@ -192,11 +213,9 @@ def search_pdf_titles():
                 "id": row["id"],
                 "title": display_title,
                 "form_id": row["form_id"],
-                "form_name": row["form_name"] or "Unbekannt",
-                "created": row["created"],
-                "kontakt_name": kontakt_name, 
+		"form_name": row["form_name"] or "Unbekannt",
                 "pdf_url": f"/api/pdfs/by-id/{row['id']}/file" 
-            }
+	    }
         )
 
     return jsonify({"count": len(items), "items": items})
