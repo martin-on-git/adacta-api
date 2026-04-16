@@ -9,20 +9,6 @@ app = Flask(__name__)
 DB_PATH = "/mnt/nas/data/adacta/db/adacta.db3"
 PDF_BASE_DIR = Path("/mnt/nas/data/adacta/archiv").resolve()
 
-FORM_TYPES = {
-    1: "Anschreiben",
-    2: "Email",
-    3: "Pressetext",
-    4: "Notiz",
-    6: "Anleitung",
-    7: "Datenblatt",
-    8: "Dokument",
-    9: "Karte",
-    10: "Bescheinigung",
-    11: "Vertrag",
-    12: "Rechnung",
-    13: "Rechnung offen",
-}
 
 
 def get_db_connection():
