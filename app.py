@@ -41,9 +41,9 @@ def get_forms():
 
 
 
-
 @app.route("/api/pdfs/search")
 def search_pdf_titles():
+    mandant = request.args.get("mandant", "").strip()
     query_raw = request.args.get("q", "").strip()
     form_id_param = request.args.get("form_id")
     year_param = request.args.get("year")
@@ -60,6 +60,10 @@ def search_pdf_titles():
     """
     params = []
 
+    if mandant:
+        sql += " AND mandant = ?"
+        params.append(mandant)
+
     # 1. Filter: Form ID (direkt über Parameter)
     if form_id_param:
         sql += " AND pdf.form_id = ?"
@@ -74,8 +78,14 @@ def search_pdf_titles():
     # 3. Filter: Freitextsuche (falls vorhanden)
     if query_raw:
         pattern = f"%{query_raw}%"
-        sql += " AND (COALESCE(pdf.title, '') LIKE ? OR COALESCE(pdf.keywords, '') LIKE ?)"
-        params.extend([pattern, pattern])
+        sql += """ 
+        AND (COALESCE(pdf.title, '') LIKE ?
+          OR COALESCE(pdf.id, '') LIKE ? 
+          OR COALESCE(kontakt_name, '') LIKE ?
+          OR COALESCE(pdf.keywords, '') LIKE ? 
+          )
+          """
+        params.extend([pattern] * 4)
 
     sql += " ORDER BY pdf.created DESC LIMIT ?"
     params.append(limit)
