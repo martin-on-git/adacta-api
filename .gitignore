@@ -4,3 +4,4 @@ __pycache__/
 *.pdf
 # Falls du doch mal einen venv-Ordner hast:
 venv/
+_app.py
