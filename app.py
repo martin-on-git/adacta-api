@@ -52,7 +52,13 @@ def search_pdf_titles():
 
     # SQL-Struktur
     sql = """
-    SELECT pdf.*, form.name AS form_name, kontakt.full_name AS kontakt_name
+    SELECT 
+        pdf.*, 
+        form.name AS form_name,
+        COALESCE(
+            NULLIF(kontakt.full_name, '. siehe Dokument'),
+            form.name
+        ) AS kontakt_name
     FROM pdf
     LEFT JOIN form ON pdf.form_id = form.id
     LEFT JOIN kontakt ON pdf.kontakt_id = kontakt.kontakt_id
@@ -111,68 +117,24 @@ def search_pdf_titles():
                 "form_id": row["form_id"],
                 "form_name": row["form_name"] or "Unbekannt",
                 "created": row["created"],
+                "kontakt_id": row["kontakt_id"],
                 "kontakt_name": kontakt_name, 
-                "pdf_url": f"/api/pdfs/by-id/{row['id']}/file" 
+                "pdf_url": f"/api/pdfs/by-id/{row['id']}/file", 
+                "name": row["name"],
+                "subject": row["subject"],
+                "keywords": row["keywords"],
+                "author": row["author"],
+                "creator": row["creator"],
+                "lastupdate": row["lastupdate"],
+                "seiten": row["seiten"],
+                "notizen": row["notizen"],
+                "importname": row["importname"],
+                "mandant": row["mandant"],
+                "status": row["status"],
             }
         )
 
     return jsonify({"count": len(items), "items": items})
-
-
-@app.route("/api/pdfs/by-id/<pdf_id>")
-def get_pdf_metadata(pdf_id: str):
-    conn = get_db_connection()
-    try:
-        row = conn.execute(
-            """
-            SELECT
-                id,
-                name,
-                title,
-                subject,
-                keywords,
-                author,
-                creator,
-                lastupdate,
-                created,
-                seiten,
-                notizen,
-                importname,
-                mandant,
-                status,
-                form_id
-            FROM pdf
-            WHERE id = ?
-            """,
-            (pdf_id,),
-        ).fetchone()
-    finally:
-        conn.close()
-
-    if row is None:
-        abort(404, description="PDF metadata not found")
-
-    return jsonify(
-        {
-            "id": row["id"],
-            "name": row["name"],
-            "title": row["title"],
-            "subject": row["subject"],
-            "keywords": row["keywords"],
-            "author": row["author"],
-            "creator": row["creator"],
-            "lastupdate": row["lastupdate"],
-            "created": row["created"],
-            "seiten": row["seiten"],
-            "notizen": row["notizen"],
-            "importname": row["importname"],
-            "mandant": row["mandant"],
-            "status": row["status"],
-            "form_id": row["form_id"],
-            "form_name": FORM_TYPES.get(row["form_id"], "Unbekannt"),
-            "pdf_url": f"/api/pdfs/by-id/{row['id']}/file",
-        }
-    )
 
 
 @app.route("/api/pdfs/by-id/<pdf_id>/file")
